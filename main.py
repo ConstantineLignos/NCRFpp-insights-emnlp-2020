@@ -25,12 +25,6 @@ except ImportError:
     import pickle
 
 
-seed_num = 42
-random.seed(seed_num)
-torch.manual_seed(seed_num)
-np.random.seed(seed_num)
-
-
 def data_initialization(data):
     data.initial_feature_alphabets()
     data.build_alphabet(data.train_dir)
@@ -501,9 +495,7 @@ def load_model_decode(data, name):
     return pred_results, pred_scores
 
 
-
-
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description='Tuning with NCRF++')
     # parser.add_argument('--status', choices=['train', 'decode'], help='update algorithm', default='train')
     parser.add_argument('--config',  help='Configuration File', default='None')
@@ -515,12 +507,20 @@ if __name__ == '__main__':
     parser.add_argument('--train', default="data/conll03/train.bmes") 
     parser.add_argument('--dev', default="data/conll03/dev.bmes" )  
     parser.add_argument('--test', default="data/conll03/test.bmes") 
-    parser.add_argument('--seg', default="True") 
+    parser.add_argument('--seg', default="True")
+    parser.add_argument('--random-seed', type=int, default=42)
     parser.add_argument('--raw') 
     parser.add_argument('--loadmodel')
-    parser.add_argument('--output') 
+    parser.add_argument('--output')
 
     args = parser.parse_args()
+
+    # Set random seed
+    seed_num = args.random_seed
+    random.seed(seed_num)
+    torch.manual_seed(seed_num)
+    np.random.seed(seed_num)
+
     data = Data()
     data.HP_gpu = torch.cuda.is_available()
     if args.config == 'None':
@@ -569,3 +569,6 @@ if __name__ == '__main__':
     else:
         print("Invalid argument! Please use valid arguments! (train/test/decode)")
 
+
+if __name__ == '__main__':
+    main()
