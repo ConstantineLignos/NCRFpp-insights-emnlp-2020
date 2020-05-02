@@ -8,6 +8,9 @@ from __future__ import absolute_import
 import sys
 import numpy as np
 
+DOCSTART_TOKEN = "-DOCSTART-"
+
+
 def normalize_word(word):
     new_word = ""
     for char in word:
@@ -98,8 +101,14 @@ def read_instance(input_file, word_alphabet, char_alphabet, feature_alphabets, l
             if len(line) > 2:
                 pairs = line.strip().split()
                 word = pairs[0]
+
                 if sys.version_info[0] < 3:
                     word = word.decode('utf-8')
+
+                # Skip DOCSTART lines
+                if word == DOCSTART_TOKEN:
+                    continue
+
                 words.append(word)
                 if number_normalized:
                     word = normalize_word(word)
