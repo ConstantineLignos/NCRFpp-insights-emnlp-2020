@@ -567,6 +567,8 @@ def main():
     parser.add_argument('--test', default="data/conll03/test.bmes") 
     parser.add_argument('--seg', default="True")
     parser.add_argument('--random-seed', type=int, default=42)
+    parser.add_argument('--lr', type=float)
+    parser.add_argument('--batch-size', type=int)
     parser.add_argument('--raw') 
     parser.add_argument('--loadmodel')
     parser.add_argument('--output')
@@ -598,6 +600,10 @@ def main():
         print("Seed num:",seed_num)
     else:
         data.read_config(args.config)
+    if args.lr:
+        data.HP_lr = args.lr
+    if args.batch_size:
+        data.HP_batch_size = args.batch_size
     # data.show_data_summary()
     status = data.status.lower()
     print("Seed num:",seed_num)
