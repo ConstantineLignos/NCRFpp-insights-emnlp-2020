@@ -5,6 +5,9 @@
 # @Last Modified time: 2019-02-13 12:41:44
 
 from __future__ import print_function
+
+import re
+import subprocess
 import time
 import sys
 import argparse
@@ -23,6 +26,8 @@ try:
     import cPickle as pickle
 except ImportError:
     import pickle
+
+import seqeval.metrics
 
 
 def data_initialization(data):
@@ -174,7 +179,24 @@ def evaluate(data, model, name, nbest=None):
         gold_results += gold_label
     decode_time = time.time() - start_time
     speed = len(instances)/decode_time
-    acc, p, r, f = get_ner_fmeasure(gold_results, pred_results, data.tagScheme)
+    internal_acc, internal_p, internal_r, internal_f = get_ner_fmeasure(
+        gold_results, pred_results, data.tagScheme)
+
+    # Do a second evaluation using seqeval
+    acc, p, r, f = seqeval_score(gold_results, pred_results)
+
+    if acc != internal_acc:
+        print(f"Accuracies disagree: {acc} (seqeval), {internal_acc} (NCRFpp), delta {internal_acc - acc}")
+
+    if p != internal_p:
+        print(f"Precisions disagree: {p} (seqeval), {internal_p} (NCRFpp), delta {internal_p - p}")
+
+    if r != internal_r:
+        print(f"Recalls disagree: {r} (seqeval), {internal_r} (NCRFpp), delta {internal_r - r}")
+
+    if f != internal_f:
+        print(f"F1s disagree: {f} (seqeval), {internal_f} (NCRFpp), delta {internal_f - f}")
+
     if nbest and not data.sentence_classification:
         return speed, acc, p, r, f, nbest_pred_results, pred_scores
     return speed, acc, p, r, f, pred_results, pred_scores
@@ -464,6 +486,42 @@ def train(data):
         else:
             print("Test: time: %.2fs, speed: %.2fst/s; acc: %.4f"%(test_cost, speed, acc))
         gc.collect()
+
+
+def conll_score(
+    gold_labels,
+    preds_labels,
+):
+    lines = []
+    for sentence_gold_labels, sentence_pred_labels in zip(gold_labels, preds_labels):
+        assert len(sentence_gold_labels) == len(sentence_pred_labels)
+        for gold_label, pred_label in zip(sentence_gold_labels, sentence_pred_labels):
+            lines.append(" ".join(("X", gold_label, pred_label)))
+        lines.append("")
+
+    output = subprocess.check_output(
+        ["perl", "conlleval.pl"], input="\n".join(lines), encoding="utf8"
+    )
+    # Sample output
+    # processed 51362 tokens with 5942 phrases; found: 5964 phrases; correct: 5118.
+    # accuracy:  97.22%; precision:  85.81%; recall:  86.13%; FB1:  85.97
+    # Split and take the second line
+    score_line = output.split("\n")[1]
+    match = re.search(r"accuracy:  ([\d.]+)%; precision:  ([\d.]+)%; recall:  ([\d.]+)%; FB1:  ([\d.]+)", score_line)
+    if match:
+        return float(match.group(1)) / 100, float(match.group(2)) / 100, float(match.group(3)) / 100, float(match.group(4)) / 100
+    else:
+        raise ValueError(f"Could not match scoring line: {repr(score_line)}")
+
+
+def seqeval_score(gold_labels, pred_labels):
+    funcs = (
+        seqeval.metrics.accuracy_score,
+        seqeval.metrics.precision_score,
+        seqeval.metrics.recall_score,
+        seqeval.metrics.f1_score
+    )
+    return [func(gold_labels, pred_labels) for func in funcs]
 
 
 def load_model_decode(data, name):
