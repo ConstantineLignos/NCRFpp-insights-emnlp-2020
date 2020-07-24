@@ -51,6 +51,8 @@ class Data:
         self.dset_dir = None ## data vocabulary related file
         self.model_dir = None ## model save  file
         self.load_model_dir = None ## model load file
+        # CSV for writing development scores
+        self.output_tsv_path = None
 
         self.word_emb_dir = None
         self.char_emb_dir = None

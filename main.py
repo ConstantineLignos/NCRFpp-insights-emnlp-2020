@@ -29,6 +29,19 @@ except ImportError:
 
 import seqeval.metrics
 
+TSV_HEADER = [
+    "Epoch",
+    "Loss",
+    "Accuracy.seqeval",
+    "Precision.seqeval",
+    "Recall.seqeval",
+    "F1.seqeval",
+    "Accuracy.NCRFpp",
+    "Precision.NCRFpp",
+    "Recall.NCRFpp",
+    "F1.NCRFpp",
+]
+
 
 def data_initialization(data):
     data.initial_feature_alphabets()
@@ -130,7 +143,6 @@ def lr_decay(optimizer, epoch, decay_rate, init_lr):
     return optimizer
 
 
-
 def evaluate(data, model, name, nbest=None):
     if name == "train":
         instances = data.train_Ids
@@ -198,8 +210,8 @@ def evaluate(data, model, name, nbest=None):
         print(f"F1s disagree: {f} (seqeval), {internal_f} (NCRFpp), delta {internal_f - f}")
 
     if nbest and not data.sentence_classification:
-        return speed, acc, p, r, f, nbest_pred_results, pred_scores
-    return speed, acc, p, r, f, pred_results, pred_scores
+        return speed, (acc, p, r, f), (internal_acc, internal_p, internal_r, internal_f), nbest_pred_results, pred_scores
+    return speed, (acc, p, r, f), (internal_acc, internal_p, internal_r, internal_f), pred_results, pred_scores
 
 
 def batchify_with_label(input_batch_list, gpu, if_train=True, sentence_classification=False):
@@ -366,13 +378,19 @@ def batchify_sentence_classification_with_label(input_batch_list, gpu, if_train=
     return word_seq_tensor,feature_seq_tensors, word_seq_lengths, word_seq_recover, char_seq_tensor, char_seq_lengths, char_seq_recover, label_seq_tensor, mask
 
 
-
-
 def train(data):
     print("Training model...")
     data.show_data_summary()
     save_data_name = data.model_dir +".dset"
     data.save(save_data_name)
+
+    if data.output_tsv_path:
+        # Use line buffering
+        output_tsv = open(data.output_tsv_path, "w", buffering=1)
+        print("\t".join(TSV_HEADER), file=output_tsv)
+    else:
+        output_tsv = None
+
     if data.sentence_classification:
         model = SentClassifier(data)
     else:
@@ -457,7 +475,8 @@ def train(data):
             print("ERROR: LOSS EXPLOSION (>1e8) ! PLEASE SET PROPER PARAMETERS AND STRUCTURE! EXIT....")
             exit(1)
         # continue
-        speed, acc, p, r, f, _,_ = evaluate(data, model, "dev")
+        speed, (acc, p, r, f), (internal_acc, internal_p, internal_r, internal_f), _, _ = evaluate(
+            data, model, "dev")
         dev_finish = time.time()
         dev_cost = dev_finish - epoch_finish
 
@@ -477,8 +496,27 @@ def train(data):
             print("Save current best model in file:", model_name)
             torch.save(model.state_dict(), model_name)
             best_dev = current_score
+
+        if output_tsv:
+            print(
+                "\t".join(str(item) for item in [
+                    idx + 1,
+                    total_loss,
+                    acc,
+                    p,
+                    r,
+                    f,
+                    internal_acc,
+                    internal_p,
+                    internal_r,
+                    internal_f
+                ]),
+                file=output_tsv
+            )
+
         # ## decode test
-        speed, acc, p, r, f, _,_ = evaluate(data, model, "test")
+        speed, (acc, p, r, f), (internal_acc, internal_p, internal_r, internal_f), _, _ = evaluate(
+            data, model, "test")
         test_finish = time.time()
         test_cost = test_finish - dev_finish
         if data.seg:
@@ -486,6 +524,9 @@ def train(data):
         else:
             print("Test: time: %.2fs, speed: %.2fst/s; acc: %.4f"%(test_cost, speed, acc))
         gc.collect()
+
+    if output_tsv:
+        output_tsv.close()
 
 
 def conll_score(
@@ -543,7 +584,8 @@ def load_model_decode(data, name):
 
     print("Decode %s data, nbest: %s ..."%(name, data.nbest))
     start_time = time.time()
-    speed, acc, p, r, f, pred_results, pred_scores = evaluate(data, model, name, data.nbest)
+    speed, (acc, p, r, f), (internal_acc, internal_p, internal_r, internal_f), pred_results, pred_scores = evaluate(
+        data, model, name, data.nbest)
     end_time = time.time()
     time_cost = end_time - start_time
     if data.seg:
@@ -572,6 +614,7 @@ def main():
     parser.add_argument('--raw') 
     parser.add_argument('--loadmodel')
     parser.add_argument('--output')
+    parser.add_argument('--output-tsv')
 
     args = parser.parse_args()
 
@@ -604,6 +647,8 @@ def main():
         data.HP_lr = args.lr
     if args.batch_size:
         data.HP_batch_size = args.batch_size
+    data.output_tsv_path = args.output_tsv
+
     # data.show_data_summary()
     status = data.status.lower()
     print("Seed num:",seed_num)
