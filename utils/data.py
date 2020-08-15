@@ -110,6 +110,9 @@ class Data:
         self.HP_momentum = 0
         self.HP_l2 = 1e-8
 
+        # Random seed
+        self.random_seed = None
+
     def show_data_summary(self):
         
         print("++"*50)

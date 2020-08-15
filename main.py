@@ -30,7 +30,10 @@ except ImportError:
 import seqeval.metrics
 
 TSV_HEADER = [
+    "Tagset",
+    "Seed",
     "Epoch",
+    "Dataset",
     "Loss",
     "Accuracy.seqeval",
     "Precision.seqeval",
@@ -492,7 +495,7 @@ def train(data):
                 print("Exceed previous best f score:", best_dev)
             else:
                 print("Exceed previous best acc score:", best_dev)
-            model_name = data.model_dir +'.'+ str(idx) + ".model"
+            model_name = data.model_dir + ".best.model"
             print("Save current best model in file:", model_name)
             torch.save(model.state_dict(), model_name)
             best_dev = current_score
@@ -500,7 +503,10 @@ def train(data):
         if output_tsv:
             print(
                 "\t".join(str(item) for item in [
+                    data.tagScheme,
+                    data.random_seed,
                     idx + 1,
+                    "Dev",
                     total_loss,
                     acc,
                     p,
@@ -523,6 +529,26 @@ def train(data):
             print("Test: time: %.2fs, speed: %.2fst/s; acc: %.4f, p: %.4f, r: %.4f, f: %.4f"%(test_cost, speed, acc, p, r, f))
         else:
             print("Test: time: %.2fs, speed: %.2fst/s; acc: %.4f"%(test_cost, speed, acc))
+
+        if output_tsv:
+            print(
+                "\t".join(str(item) for item in [
+                    data.tagScheme,
+                    data.random_seed,
+                    idx + 1,
+                    "Test",
+                    total_loss,
+                    acc,
+                    p,
+                    r,
+                    f,
+                    internal_acc,
+                    internal_p,
+                    internal_r,
+                    internal_f
+                ]),
+                file=output_tsv
+            )
         gc.collect()
 
     if output_tsv:
@@ -615,6 +641,8 @@ def main():
     parser.add_argument('--loadmodel')
     parser.add_argument('--output')
     parser.add_argument('--output-tsv')
+    parser.add_argument('--model-prefix')
+    parser.add_argument('--cpu', action='store_true')
 
     args = parser.parse_args()
 
@@ -625,6 +653,7 @@ def main():
     np.random.seed(seed_num)
 
     data = Data()
+    data.random_seed = seed_num
     data.HP_gpu = torch.cuda.is_available()
     if args.config == 'None':
         data.train_dir = args.train 
@@ -648,6 +677,10 @@ def main():
     if args.batch_size:
         data.HP_batch_size = args.batch_size
     data.output_tsv_path = args.output_tsv
+    if args.cpu:
+        data.HP_gpu = False
+    if args.model_prefix:
+        data.model_dir = args.model_prefix
 
     # data.show_data_summary()
     status = data.status.lower()
