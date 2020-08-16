@@ -1,5 +1,4 @@
 library(tidyverse)
-library(xtable)
 
 theme_set(theme_bw())
 options(pillar.sigfig = 5)
@@ -16,7 +15,7 @@ summary(scores)
 scores.dev <- scores %>% filter(Dataset == "Dev")
 
 # Per-condition means and SDs
-scores.grouped <- scores %>% filter(Best.NCRFpp) %>% group_by(Dataset, Tagset, CharModel) %>% select(-c(Epoch, Loss, F1.Delta))
+scores.grouped <- scores %>% filter(Best.NCRFpp) %>% group_by(Dataset, Tagset, CharModel)
 scores.means <- scores.grouped %>% summarize_if(is.numeric, mean) %>% mutate(F1.Delta = F1.NCRFpp - F1.seqeval)
 scores.sds <- scores.grouped %>% summarize_if(is.numeric, sd)
 print(select(scores.means, Dataset, Tagset, CharModel | starts_with("F1")))
@@ -24,14 +23,25 @@ print(select(scores.sds, Dataset, Tagset, CharModel | starts_with("F1")))
 
 # Average differences
 scores.delta.summary <- scores.grouped %>% mutate(F1.Delta = F1.NCRFpp - F1.seqeval) %>% group_by(Dataset, Tagset) %>% summarize(F1.Delta.Mean = mean(F1.Delta), F1.Delta.SD = sd(F1.Delta), .groups = "keep")
+print(scores.delta.summary)
+
+# Test average differences
+test.f1.delta <- function(scores) {
+  wilcox.test(scores$F1.NCRFpp, scores$F1.seqeval, paired = TRUE, conf.int = TRUE)
+}
+
+scores.grouped.dev <- filter(scores.grouped, Dataset == "Dev")
+test.f1.delta(filter(scores.grouped.dev, Tagset == "BIO"))
+test.f1.delta(filter(scores.grouped.dev, Tagset == "BIOES"))
+
+scores.grouped.test <- filter(scores.grouped, Dataset == "Test")
+test.f1.delta(filter(scores.grouped.test, Tagset == "BIO"))
+test.f1.delta(filter(scores.grouped.test, Tagset == "BIOES"))
 
 # Average best epoch
 scores.best.epoch <- scores %>% filter(Best.NCRFpp, Dataset == "Dev") %>% group_by(Tagset) %>% summarize(Epoch.Mean = mean(Epoch), Epoch.SD = sd(Epoch), .groups = "keep")
+print(scores.best.epoch)
 
-ggplot(filter(scores.dev), aes(F1.Delta)) + geom_histogram(bins = 50) + facet_wrap(vars(Tagset), ncol = 1)
-
-ggplot(filter(scores.dev), aes(Epoch, F1.Delta)) + geom_point() + facet_wrap(vars(Tagset), ncol = 1) + geom_smooth(method = "loess", formula = y ~ x, span = 0.2, color = "gray60") + scale_y_continuous(breaks = seq(0, 3, 0.5), limits = c(0, NA)) + ylab("Dev F1 Difference")
-ggsave("scorer.delta.png", width = 4, height = 6)
-
-ggplot(filter(scores.dev, Tagset == "BIOES"), aes(F1.Delta)) + geom_histogram(bins = 50)
-
+# Difference across epochs
+ggplot(scores.dev, aes(Epoch, F1.Delta)) + geom_point(alpha = 0.4) + facet_wrap(vars(Tagset), ncol = 1) + geom_smooth(method = "loess", formula = y ~ x, span = 0.2, color = "grey80") + scale_y_continuous(breaks = seq(0, 3, 0.5), limits = c(0, NA)) + ylab("Development Set F1 Increase")
+ggsave("scorer.delta.png", width = 4, height = 5.5)
