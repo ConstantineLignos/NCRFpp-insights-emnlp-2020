@@ -9,6 +9,10 @@ CHAR_MODELS = {
     "charlstm": "LSTM",
     "charcnn": "CNN",
 }
+OUTPUT_NAMES = {
+    "softmax": "Softmax",
+    "crf": "CRF",
+}
 
 
 def main() -> None:
@@ -40,9 +44,12 @@ def main() -> None:
 
     # Set run properties
     name = os.path.basename(path)
+    # Example filename: charcnn.wordlstm.crf.bio.0.tsv
     name_split = name.split(".")
     # First field is the character level
     data["CharModel"] = CHAR_MODELS[name_split[0]]
+    # Third is output later (CRF/Softmax)
+    data["Output"] = OUTPUT_NAMES[name_split[2]]
 
     # Can't write directly to sys.stdout due to pandas issue
     buf = StringIO()
