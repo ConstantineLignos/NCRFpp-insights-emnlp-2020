@@ -23,8 +23,8 @@ To replicate the experiments run in this paper, do the following:
    Create the environment: `conda env create -f environment.yml`.
    Activate it: `conda activate ncrfpp`.
 
-2. Put the the GloVe 6B 50d word vectors at
-   `embeddings/glove.6B.50d.txt` Populate the files
+2. Put the the GloVe 6B 100d word vectors at
+   `embeddings/glove.6B.100d.txt` Populate the files
    `clean_data/en/{train,dev,test}.txt.clean` using CoNLL 2003 English
    files in the BIO encoding with all columns removed except the token
    and label. Similarly, populate
