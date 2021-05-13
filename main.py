@@ -28,6 +28,7 @@ except ImportError:
     import pickle
 
 import seqeval.metrics
+from seqscore.scoring import score_label_sequences
 
 TSV_HEADER = [
     "Tagset",
@@ -35,10 +36,10 @@ TSV_HEADER = [
     "Epoch",
     "Dataset",
     "Loss",
-    "Accuracy.seqeval",
-    "Precision.seqeval",
-    "Recall.seqeval",
-    "F1.seqeval",
+    "Accuracy.seqscore",
+    "Precision.seqscore",
+    "Recall.seqscore",
+    "F1.seqscore",
     "Accuracy.NCRFpp",
     "Precision.NCRFpp",
     "Recall.NCRFpp",
@@ -197,20 +198,26 @@ def evaluate(data, model, name, nbest=None):
     internal_acc, internal_p, internal_r, internal_f = get_ner_fmeasure(
         gold_results, pred_results, data.tagScheme)
 
-    # Do a second evaluation using seqeval
-    acc, p, r, f = seqeval_score(gold_results, pred_results)
+    # Do a second evaluation using seqscore
+    acc, p, r, f, class_score = seqscore_score(gold_results, pred_results)
+
+    print()
+    print(f"Per-class scores for {name}:")
+    for entity_type, type_score in class_score.type_scores.items():
+        print(f"{entity_type}\tP: {type_score.precision:0.4f}\tR: {type_score.recall:0.4f}\tF1: {type_score.f1:0.4f}")
+    print()
 
     if acc != internal_acc:
-        print(f"Accuracies disagree: {acc} (seqeval), {internal_acc} (NCRFpp), delta {internal_acc - acc}")
+        print(f"Accuracies disagree: {acc} (seqscore), {internal_acc} (NCRFpp), delta {internal_acc - acc}")
 
     if p != internal_p:
-        print(f"Precisions disagree: {p} (seqeval), {internal_p} (NCRFpp), delta {internal_p - p}")
+        print(f"Precisions disagree: {p} (seqscore), {internal_p} (NCRFpp), delta {internal_p - p}")
 
     if r != internal_r:
-        print(f"Recalls disagree: {r} (seqeval), {internal_r} (NCRFpp), delta {internal_r - r}")
+        print(f"Recalls disagree: {r} (seqscore), {internal_r} (NCRFpp), delta {internal_r - r}")
 
     if f != internal_f:
-        print(f"F1s disagree: {f} (seqeval), {internal_f} (NCRFpp), delta {internal_f - f}")
+        print(f"F1s disagree: {f} (seqscore), {internal_f} (NCRFpp), delta {internal_f - f}")
 
     if nbest and not data.sentence_classification:
         return speed, (acc, p, r, f), (internal_acc, internal_p, internal_r, internal_f), nbest_pred_results, pred_scores
@@ -589,6 +596,11 @@ def seqeval_score(gold_labels, pred_labels):
         seqeval.metrics.f1_score
     )
     return [func(gold_labels, pred_labels) for func in funcs]
+
+
+def seqscore_score(gold_labels, pred_labels):
+    class_score, acc_score = score_label_sequences(pred_labels, gold_labels, "BIO", repair="conlleval")
+    return acc_score.accuracy, class_score.precision, class_score.recall, class_score.f1, class_score
 
 
 def load_model_decode(data, name):
